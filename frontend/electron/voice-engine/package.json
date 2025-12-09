@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@picovoice/porcupine-node": "^3.0.6",
+    "node-fetch": "^2.7.0",
+    "node-record-lpcm16": "^1.0.1",
+    "socket.io-client": "^4.8.1",
+    "wav": "^1.0.2"
+  }
+}

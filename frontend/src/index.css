@@ -1,0 +1,171 @@
+/* @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800&display=swap'); */
+@import url('https://fonts.cdnfonts.com/css/sf-pro-display');
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes floating {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-floating {
+  animation: floating 6s ease-in-out infinite;
+}
+
+
+@layer base {
+  :root {
+    /* Smart Mirror Dark Theme - VisionOS Inspired */
+    --background: 220 20% 6%;
+    --foreground: 220 15% 95%;
+
+    --card: 220 20% 10%;
+    --card-foreground: 220 15% 95%;
+
+    --popover: 220 20% 8%;
+    --popover-foreground: 220 15% 95%;
+
+    --primary: 195 100% 70%;
+    --primary-foreground: 220 20% 6%;
+
+    --secondary: 220 15% 15%;
+    --secondary-foreground: 220 15% 85%;
+
+    --muted: 220 15% 20%;
+    --muted-foreground: 220 10% 55%;
+
+    --accent: 195 80% 60%;
+    --accent-foreground: 220 20% 6%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 220 15% 95%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 195 100% 70%;
+
+    --radius: 1.5rem;
+
+    /* Custom Mirror Variables */
+    --mirror-glow: 195 100% 70%;
+    --mirror-glass: 220 20% 12%;
+    --mirror-reflection: 220 15% 100%;
+    --mirror-subtle: 220 10% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    @apply h-full overflow-hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+  }
+}
+
+@layer components {
+  /* Glassmorphism Panel */
+  .glass-panel {
+    @apply relative rounded-3xl;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--mirror-glass) / 0.6) 0%,
+      hsl(var(--mirror-glass) / 0.3) 100%
+    );
+    backdrop-filter: blur(40px) saturate(150%);
+    -webkit-backdrop-filter: blur(40px) saturate(150%);
+    border: 1px solid hsl(var(--mirror-reflection) / 0.08);
+    box-shadow: 
+      0 0 0 1px hsl(var(--mirror-reflection) / 0.05) inset,
+      0 25px 50px -12px hsl(220 20% 0% / 0.5);
+  }
+
+  .glass-panel::before {
+    content: '';
+    @apply absolute inset-0 rounded-3xl pointer-events-none;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--mirror-reflection) / 0.1) 0%,
+      transparent 50%
+    );
+  }
+
+  /* Subtle Glow Effect */
+  .glow-accent {
+    text-shadow: 0 0 30px hsl(var(--mirror-glow) / 0.5),
+                 0 0 60px hsl(var(--mirror-glow) / 0.3);
+  }
+
+  .glow-soft {
+    text-shadow: 0 0 20px hsl(var(--mirror-reflection) / 0.3);
+  }
+
+  /* Mirror Background */
+  .mirror-bg {
+    background: 
+      radial-gradient(ellipse at 20% 20%, hsl(220 30% 12% / 0.8) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, hsl(195 30% 10% / 0.6) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, hsl(220 20% 8%) 0%, hsl(220 25% 4%) 100%);
+  }
+
+  /* Ultra Light Text Weights */
+  .text-ultralight {
+    font-weight: 100;
+    letter-spacing: 0.02em;
+  }
+
+  .text-thin {
+    font-weight: 200;
+    letter-spacing: 0.01em;
+  }
+
+  .text-light {
+    font-weight: 300;
+  }
+}
+
+@layer utilities {
+  /* Fade animations */
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.8s ease-out forwards;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+  .delay-500 { animation-delay: 500ms; }
+}

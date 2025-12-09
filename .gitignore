@@ -1,0 +1,29 @@
+# Ignore all .env files anywhere
+**/.env
+**/.env.*
+**/.env.local
+**/.env.*.local
+
+# Node modules in any folder (frontend, backend)
+**/node_modules/
+
+# Build output (in any folder)
+**/dist/
+**/build/
+**/.next/
+**/out/
+
+# Logs
+**/*.log
+
+# Cache directories
+**/.cache/
+**/.vite/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

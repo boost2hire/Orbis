@@ -1,0 +1,9 @@
+flask
+flask-cors
+flask-socketio
+python-dotenv
+requests
+opencv-python-headless
+eventlet
+qrcode
+Pillow
