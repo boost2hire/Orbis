@@ -127,6 +127,45 @@ export function useVoiceSocket<T extends BaseVoiceResponse = BaseVoiceResponse>(
     };
   }, [playAudio]);
 
+
+  // take photo
+  useEffect(() => {
+  if (!socket) return;
+
+  const onRequestPhoto = async () => {
+    try {
+      const video = document.getElementById("mirror-cam") as HTMLVideoElement;
+      if (!video) return;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+
+      // ✅ Send image to backend
+      await fetch("http://127.0.0.1:5001/photo/from-ui", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: dataUrl })
+      });
+
+    } catch (err) {
+      console.error("Photo capture failed:", err);
+    }
+  };
+
+  socket.on("request_photo", onRequestPhoto);
+
+  return () => {
+    socket.off("request_photo", onRequestPhoto);
+  };
+
+}, [socket]);
+
   // -----------------------------
   // High sensitivity boost
   // -----------------------------

@@ -1,20 +1,54 @@
-import React, { useEffect, useRef, useState } from "react";
+/// <reference types="youtube" />
+
+import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import ColorThief from "colorthief";
 
-const socket = io(`http://${window.location.hostname}:5001`)
+/* ✅ Extend Window type safely (ONLY ONCE) */
+declare global {
+  interface Window {
+    YT: typeof YT;
+  }
+}
 
+const socket = io(`http://${window.location.hostname}:5001`);
+
+type Song = {
+  id: string;
+  title: string;
+  thumb: string;
+};
+
+type PlayPayload = {
+  query?: string;
+};
+
+type YouTubeItem = {
+  id: { videoId: string };
+  snippet: {
+    title: string;
+    thumbnails: { high: { url: string } };
+  };
+};
 
 export default function MusicPlayer() {
-  const [playlist, setPlaylist] = useState([]);
+  const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [thumbnail, setThumbnail] = useState("");
   const [bgColor, setBgColor] = useState("rgba(0,0,0,0.6)");
 
-  const playerRef = useRef(null);
+  const playerRef = useRef<YT.Player | null>(null);
+  const playlistRef = useRef<Song[]>([]);
+  const indexRef = useRef(0);
 
-  // Load YouTube API
+  /* ✅ Keep refs in sync */
+  useEffect(() => {
+    playlistRef.current = playlist;
+    indexRef.current = currentIndex;
+  }, [playlist, currentIndex]);
+
+  /* ✅ Load YouTube API */
   useEffect(() => {
     if (!window.YT) {
       const tag = document.createElement("script");
@@ -23,23 +57,38 @@ export default function MusicPlayer() {
     }
   }, []);
 
-  // Handle socket events from backend
+  /* ✅ SOCKET VOICE COMMANDS */
   useEffect(() => {
-    socket.on("play_song", ({ query }) => {
-      console.log("Voice → Play:", query);
+    const onPlay = (data: PlayPayload) => {
+      const query = data.query || "popular songs";
+      console.log("🎵 Lumi → Play:", query);
       searchYouTube(query);
-    });
+    };
 
-    socket.on("music_pause", () => pause());
-    socket.on("music_resume", () => resume());
-    socket.on("music_stop", () => stop());
-    socket.on("music_next", () => next());
-    socket.on("music_prev", () => prev());
-  }, [socket, searchYouTube, next, prev]);
+    const onPause = () => pause();
+    const onResume = () => resume();
+    const onStop = () => stop();
+    const onNext = () => next();
 
-  // Search YouTube for playlist
-  async function searchYouTube(query) {
-    const API_KEY = process.env.REACT_APP_YT_KEY;
+    socket.on("play_song", onPlay);
+    socket.on("music_pause", onPause);
+    socket.on("music_resume", onResume);
+    socket.on("music_stop", onStop);
+    socket.on("music_next", onNext);
+
+    return () => {
+      socket.off("play_song", onPlay);
+      socket.off("music_pause", onPause);
+      socket.off("music_resume", onResume);
+      socket.off("music_stop", onStop);
+      socket.off("music_next", onNext);
+    };
+  });
+
+  /* ✅ YouTube Search (NO any, FULLY TYPED) */
+  async function searchYouTube(query: string) {
+    const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
+    if (!API_KEY) return console.error("❌ VITE_YOUTUBE_API_KEY missing");
 
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(
@@ -47,10 +96,10 @@ export default function MusicPlayer() {
       )}&key=${API_KEY}`
     );
 
-    const data = await res.json();
-    if (!data.items.length) return;
+    const data: { items?: YouTubeItem[] } = await res.json();
+    if (!data.items || data.items.length === 0) return;
 
-    const list = data.items.map((v) => ({
+    const list: Song[] = data.items.map(v => ({
       id: v.id.videoId,
       title: v.snippet.title,
       thumb: v.snippet.thumbnails.high.url,
@@ -58,20 +107,17 @@ export default function MusicPlayer() {
 
     setPlaylist(list);
     setCurrentIndex(0);
-
     loadSong(list[0]);
   }
 
-  // Load selected track
-  function loadSong(song) {
+  function loadSong(song: Song) {
     setTitle(song.title);
     setThumbnail(song.thumb);
     extractColors(song.thumb);
     loadPlayer(song.id);
   }
 
-  // Extract background color from thumbnail
-  function extractColors(url) {
+  function extractColors(url: string) {
     const img = new Image();
     img.crossOrigin = "Anonymous";
     img.src = url;
@@ -83,10 +129,9 @@ export default function MusicPlayer() {
     };
   }
 
-  // Load or update YouTube player
-  function loadPlayer(videoId) {
+  function loadPlayer(videoId: string) {
     if (!window.YT || !window.YT.Player) {
-      setTimeout(() => loadPlayer(videoId), 500);
+      setTimeout(() => loadPlayer(videoId), 400);
       return;
     }
 
@@ -102,35 +147,31 @@ export default function MusicPlayer() {
     }
   }
 
-  // Voice Control Functions
+  /* ✅ VOICE ACTIONS */
+
   function pause() {
-    console.log("Pausing music");
+    console.log("⏸ Lumi → Pause");
     playerRef.current?.pauseVideo();
   }
 
   function resume() {
-    console.log("Resuming music");
+    console.log("▶️ Lumi → Resume");
     playerRef.current?.playVideo();
   }
 
   function stop() {
-    console.log("Stopping music");
+    console.log("⏹ Lumi → Stop");
     playerRef.current?.stopVideo();
   }
 
   function next() {
-    if (currentIndex + 1 < playlist.length) {
-      const nextIndex = currentIndex + 1;
-      setCurrentIndex(nextIndex);
-      loadSong(playlist[nextIndex]);
-    }
-  }
+    const list = playlistRef.current;
+    const i = indexRef.current;
 
-  function prev() {
-    if (currentIndex - 1 >= 0) {
-      const prevIndex = currentIndex - 1;
-      setCurrentIndex(prevIndex);
-      loadSong(playlist[prevIndex]);
+    if (i + 1 < list.length) {
+      const nextIndex = i + 1;
+      setCurrentIndex(nextIndex);
+      loadSong(list[nextIndex]);
     }
   }
 
@@ -139,7 +180,6 @@ export default function MusicPlayer() {
       style={{
         width: "100vw",
         height: "100vh",
-        position: "relative",
         background: bgColor,
         backdropFilter: "blur(25px)",
         display: "flex",
@@ -149,8 +189,8 @@ export default function MusicPlayer() {
         transition: "background 0.6s ease",
       }}
     >
-      {/* Hidden YouTube Player */}
-      <div id="yt-player" style={{ display: "none" }}></div>
+      {/* ✅ Hidden YouTube Player */}
+      <div id="yt-player" style={{ display: "none" }} />
 
       {thumbnail && (
         <>
@@ -162,20 +202,10 @@ export default function MusicPlayer() {
               objectFit: "cover",
               borderRadius: 20,
               boxShadow: "0px 0px 40px rgba(0,0,0,0.5)",
-              zIndex: 2,
-              transition: "0.3s ease",
             }}
             alt="Thumbnail"
           />
-          <h2
-            style={{
-              color: "white",
-              marginTop: 20,
-              fontSize: 22,
-              width: "80%",
-              textAlign: "center",
-            }}
-          >
+          <h2 style={{ color: "white", marginTop: 20, fontSize: 22 }}>
             {title}
           </h2>
         </>

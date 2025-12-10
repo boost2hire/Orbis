@@ -221,52 +221,51 @@ const Index = () => {
   // -----------------------------
   // UI RENDER
   // -----------------------------
-  return (
-    <div>
-      <div className="h-full w-full relative">
+ return (
+  <div className="fixed inset-0 bg-transparent overflow-hidden">
+    <div className="relative w-full h-full z-10">
 
-        <div className="absolute top-0 left-0">
-          <TimeDisplay />
-        </div>
-
-        <div className="absolute top-0 right-0">
-          <WeatherWidget />
-        </div>
-
-        <div className="absolute bottom-0 left-0">
-          <CalendarWidget />
-        </div>
-
-        <VoiceIndicator listening={listening} />
-
-          <video
-            id="mirror-cam"
-            autoPlay
-            playsInline
-            muted
-            className="hidden"
-          />
-
-        <OutfitDisplay
-          suggestion={outfitSuggestion}
-          images={outfitImages}
-          show={showOutfit}
-        />
-
-        <QRCodeDisplay qr={qrImage} show={showQR} />
-
-        {/* 🎵 MUSIC PLAYER */}
-        <div className="absolute inset-0 pointer-events-none">
-          <MusicPlayer />
-        </div>
-
-        <div className="absolute bottom-0 right-0">
-          <p className="text-xs text-muted-foreground/20">Smart Mirror</p>
-        </div>
-
+      <div className="absolute top-4 left-4 z-20">
+        <TimeDisplay />
       </div>
+
+      <div className="absolute top-4 right-4 z-20">
+        <WeatherWidget />
+      </div>
+
+      <div className="absolute bottom-4 left-4 z-20">
+        <CalendarWidget />
+      </div>
+
+      <VoiceIndicator listening={listening} />
+
+      <video
+        id="mirror-cam"
+        autoPlay
+        playsInline
+        muted
+        className="hidden"
+      />
+
+      <OutfitDisplay
+        suggestion={outfitSuggestion}
+        images={outfitImages}
+        show={showOutfit}
+      />
+
+      <QRCodeDisplay qr={qrImage} show={showQR} />
+
+      {/* 🎵 MUSIC PLAYER */}
+      <MusicPlayer />
+
+      <div className="absolute bottom-4 right-4 z-20">
+        <p className="text-xs text-muted-foreground/20">Smart Mirror</p>
+      </div>
+
     </div>
-  );
+  </div>
+);
+
 };
 
 export default Index;

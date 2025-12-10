@@ -1,3 +1,7 @@
+import eventlet
+eventlet.monkey_patch()
+
+
 import os
 from dotenv import load_dotenv
 from flask import Flask
@@ -25,6 +29,39 @@ from qr_routes import qr_bp, gallery_bp
 from photo_routes import photo_bp
 from cleanup_photos import start_cleanup_thread
 
+@app.route("/photo/from-ui", methods=["POST"])
+def photo_from_ui():
+    import base64, time, os
+    from flask import request, jsonify
+
+    data = request.json.get("image")
+
+    if not data:
+        return jsonify({"error": "No image"}), 400
+
+    header, encoded = data.split(",", 1)
+    img_bytes = base64.b64decode(encoded)
+
+    os.makedirs("captures", exist_ok=True)
+    filename = f"photo_{int(time.time())}.jpg"
+    path = os.path.join("captures", filename)
+
+    with open(path, "wb") as f:
+        f.write(img_bytes)
+
+    ip = os.getenv("MIRROR_IP", "127.0.0.1")
+    port = int(os.getenv("PORT", 5001))
+    url = f"http://{ip}:{port}/captures/{filename}"
+
+    payload = {
+        "type": "PHOTO",
+        "file": filename,
+        "url": url,
+        "say": "Photo captured."
+    }
+
+    socketio.emit("voice_response", payload)
+    return jsonify(payload)
 
 start_cleanup_thread()
 app.register_blueprint(weather_bp, url_prefix="/weather")

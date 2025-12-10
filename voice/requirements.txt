@@ -1,0 +1,30 @@
+# =========================
+# Core Voice Engine
+# =========================
+openai
+python-dotenv
+
+# =========================
+# Audio Input / Output
+# =========================
+sounddevice
+soundfile
+pyaudio
+numpy
+
+# =========================
+# Wake Word Engine (Porcupine Wrapper)
+# =========================
+pvporcupine
+
+# =========================
+# Whisper STT (Python side)
+# =========================
+faster-whisper
+torch
+
+# =========================
+# Utilities
+# =========================
+requests
+tqdm

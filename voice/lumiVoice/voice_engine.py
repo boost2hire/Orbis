@@ -23,7 +23,7 @@ load_dotenv()
 BACKEND_URL = "http://127.0.0.1:5001/voice/intent"
 
 WHISPER_BIN = r"C:\Users\DELL\Desktop\orbis\voice\lumiVoice\whisper\Release\whisper-cli.exe"
-WHISPER_MODEL = r"C:\lumiVoice\models\ggml-tiny.en.bin"
+WHISPER_MODEL = r"C:\Users\DELL\Desktop\orbis\voice\lumiVoice\models\ggml-tiny.en.bin"
 
 WAKEWORD_FILE = r"C:\Users\DELL\Desktop\orbis\voice\lumiVoice\keywords\Hey-Lumi_en_windows_v3_0_0.ppn"
 PICOVOICE_ACCESS_KEY = os.environ.get("PICOVOICE_ACCESS_KEY", "")

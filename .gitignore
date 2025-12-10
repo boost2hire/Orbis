@@ -1,29 +1,63 @@
-# Ignore all .env files anywhere
+# =========================
+# Environment Files (ALL)
+# =========================
 **/.env
 **/.env.*
 **/.env.local
 **/.env.*.local
 
-# Node modules in any folder (frontend, backend)
+# =========================
+# Node / Frontend
+# =========================
 **/node_modules/
-
-# Build output (in any folder)
+**/.vite/
+**/.cache/
 **/dist/
 **/build/
 **/.next/
 **/out/
 
+# =========================
 # Logs
+# =========================
 **/*.log
 
-# Cache directories
-**/.cache/
-**/.vite/
-
-# System files
+# =========================
+# System / OS
+# =========================
 .DS_Store
 Thumbs.db
 
-# IDE
+# =========================
+# IDE / Editors
+# =========================
 .vscode/
 .idea/
+
+# =========================
+# Python
+# =========================
+**/__pycache__/
+**/*.pyc
+backend/venv/
+backend/captures/
+
+# =========================
+# Voice Engine (Binaries + Audio)
+# =========================
+voice/lumiVoice/*.wav
+voice/lumiVoice/*.json
+voice/lumiVoice/*.dll
+voice/lumiVoice/whisper/Release/
+
+# =========================
+# Electron
+# =========================
+frontend/electron/app-shell/node_modules/
+
+# =========================
+# Lockfiles (optional - keep if needed)
+# =========================
+# Uncomment these if you don't want lock files:
+# package-lock.json
+# bun.lockb
