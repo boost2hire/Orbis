@@ -84,15 +84,28 @@ export function useVoiceSocket<T extends BaseVoiceResponse = BaseVoiceResponse>(
       setIsListening(false);
     };
 
-    // TEXT FROM SERVER
+    // -----------------------------
+    // 🎤 FIXED TEXT PARSING LOGIC
+    // -----------------------------
     const onText = (data: { text: string }) => {
       if (!data?.text) return;
 
       const msg = data.text.trim().toLowerCase();
       const now = Date.now();
 
-      if (!msg || NOISE.includes(msg)) return;
-      if (now - lastUpdateRef.current < 120) return;
+      if (!msg) return;
+      if (NOISE.includes(msg)) return;
+
+      // ⭐ WAKE WORDS MUST ALWAYS PASS
+      if (msg.includes("lumi") || msg.includes("hey lumi")) {
+        console.log("🔥 Wake word chunk received:", msg);
+        setVoiceText(msg);
+        lastUpdateRef.current = now;
+        return;
+      }
+
+      // ⭐ Smooth debounce (not too strict)
+      if (now - lastUpdateRef.current < 40) return;
 
       lastUpdateRef.current = now;
       setVoiceText(msg);
@@ -105,7 +118,6 @@ export function useVoiceSocket<T extends BaseVoiceResponse = BaseVoiceResponse>(
       console.log("🤖 AI response:", data);
       setVoiceResponse(data);
 
-      // automatically play TTS audio if exists
       if (data.audio || data.audioUrl) {
         playAudio(data.audioUrl ?? data.audio!);
       }
@@ -117,7 +129,6 @@ export function useVoiceSocket<T extends BaseVoiceResponse = BaseVoiceResponse>(
     s.on("voice_text", onText);
     s.on("voice_response", onResponse);
 
-    // CLEANUP
     return () => {
       s.off("connect", onConnect);
       s.off("disconnect", onDisconnect);
@@ -127,47 +138,45 @@ export function useVoiceSocket<T extends BaseVoiceResponse = BaseVoiceResponse>(
     };
   }, [playAudio]);
 
-
-  // take photo
+  // -----------------------------
+  // TAKE PHOTO
+  // -----------------------------
   useEffect(() => {
-  if (!socket) return;
+    if (!socket) return;
 
-  const onRequestPhoto = async () => {
-    try {
-      const video = document.getElementById("mirror-cam") as HTMLVideoElement;
-      if (!video) return;
+    const onRequestPhoto = async () => {
+      try {
+        const video = document.getElementById("mirror-cam") as HTMLVideoElement;
+        if (!video) return;
 
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
 
-      const ctx = canvas.getContext("2d");
-      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
 
-      // ✅ Send image to backend
-      await fetch("http://127.0.0.1:5001/photo/from-ui", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl })
-      });
+        await fetch("http://127.0.0.1:5001/photo/from-ui", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: dataUrl }),
+        });
+      } catch (err) {
+        console.error("Photo capture failed:", err);
+      }
+    };
 
-    } catch (err) {
-      console.error("Photo capture failed:", err);
-    }
-  };
+    socket.on("request_photo", onRequestPhoto);
 
-  socket.on("request_photo", onRequestPhoto);
-
-  return () => {
-    socket.off("request_photo", onRequestPhoto);
-  };
-
-}, [socket]);
+    return () => {
+      socket.off("request_photo", onRequestPhoto);
+    };
+  }, [socket]);
 
   // -----------------------------
-  // High sensitivity boost
+  // BOOST SENSITIVITY
   // -----------------------------
   useEffect(() => {
     if (!socket?.connected) return;

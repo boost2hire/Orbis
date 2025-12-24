@@ -1,7 +1,7 @@
 import { Calendar } from "lucide-react";
 
 const events = [
-  { time: "9:00 AM", title: "Team Standup", accent: true },
+  { time: "9:00 AM", title: "Standup", accent: true },
   { time: "11:30 AM", title: "Design Review", accent: false },
   { time: "2:00 PM", title: "Client Call", accent: false },
   { time: "4:30 PM", title: "Yoga Session", accent: true },

@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Mic } from "lucide-react";
 
 type Props = {
@@ -7,27 +6,41 @@ type Props = {
 
 const VoiceIndicator = ({ listening }: Props) => {
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
+    <div
+      className={`
+        fixed bottom-20 left-1/2 -translate-x-1/2 z-50
+        transition-all duration-300
+        ${listening ? "animate-mic-pop" : ""}
+      `}
+    >
       <div
         className={`
-          flex items-center justify-center 
-          w-14 h-14 rounded-full 
-          bg-white/10 backdrop-blur-lg
-          border border-white/20
-          shadow-[0_0_20px_rgba(255,255,255,0.15)]
+          relative flex items-center justify-center
+          w-16 h-16 rounded-full
+          bg-white/10 backdrop-blur-lg border border-white/20
+          
           transition-all duration-300
-          ${listening ? "scale-[1.40]" : "scale-100"}
+
+          ${listening ? "scale-125 animate-mic-pulse-glow" : "scale-100"}
         `}
       >
-        {/* PULSE EFFECT */}
+        {/* Soft pulse ring only when listening */}
         {listening && (
-          <span className="absolute w-14 h-14 rounded-full animate-ping bg-primary/30"></span>
+          <span
+            className="
+              absolute inset-0 rounded-full
+              bg-primary/20
+              animate-ping
+            "
+          />
         )}
 
         <Mic
-          className={`w-7 h-7 ${
-            listening ? "text-primary" : "text-foreground/50"
-          } transition-all duration-300`}
+          className={`
+            w-8 h-8
+            transition-all duration-300
+            ${listening ? "text-primary" : "text-foreground/50"}
+          `}
           strokeWidth={1.5}
         />
       </div>

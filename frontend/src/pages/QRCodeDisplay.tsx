@@ -9,7 +9,7 @@ const QRCodeDisplay: React.FC<Props> = ({ qr, show }) => {
   if (!show || !qr) return null;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center animate-fade-in">
+    <div className="absolute inset-0 flex items-center justify-center animate-fade-in z-[9999] pointer-events-auto">
       <div className="bg-black/30 backdrop-blur-lg p-6 rounded-3xl shadow-xl">
         <img
           src={qr}  // <<< FIXED — NO PREFIX ADDED

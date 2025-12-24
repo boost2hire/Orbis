@@ -7,14 +7,9 @@ import QRCodeDisplay from "@/pages/QRCodeDisplay";
 import MusicPlayer from "@/components/mirror/MusicPlayer";
 
 import { useVoiceSocket } from "@/voice/useVoiceSocket";
-import { isWakeWord } from "@/voice/wakeWord";
-
 import { toast } from "sonner";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
-// -----------------------------
-// TYPES
-// -----------------------------
 type OutfitImage = { url: string; caption: string };
 
 const Index = () => {
@@ -28,23 +23,12 @@ const Index = () => {
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
 
-  const cooldown = useRef(false);
-
   // -----------------------------
-  // TTS
+  // TTS Helper
   // -----------------------------
   const speak = (text: string) => {
     if (!text) return;
     const utter = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-
-    utter.voice =
-      voices.find(v => v.name.includes("Google UK English Female")) ||
-      voices.find(v => v.name.includes("Google US English")) ||
-      voices.find(v => v.name.toLowerCase().includes("female")) ||
-      voices[0];
-
-    utter.pitch = 1.1;
     utter.rate = 1;
     window.speechSynthesis.speak(utter);
   };
@@ -54,127 +38,123 @@ const Index = () => {
     setShowQR(false);
   };
 
-  const showOutfitFor30s = () => {
-    setShowOutfit(true);
-    setTimeout(() => setShowOutfit(false), 30000);
-  };
-
   // -----------------------------
-  // Wake Word
+  // 🔥 REAL WAKE WORD TRIGGER (from Python)
   // -----------------------------
   useEffect(() => {
-    if (!voiceText) return;
-    const text = voiceText.toLowerCase().trim();
+  if (!socket) return;
 
-    if (cooldown.current) return;
-    cooldown.current = true;
-    setTimeout(() => (cooldown.current = false), 1200);
+  const onWake = () => {
+    console.log("🔥 Wake word received from Python!");
+    hideAll();
+    setListening(true);
+  };
 
-    if (isWakeWord(text) || text.startsWith("lumi")) {
-      hideAll();
-      setListening(true);
-      setTimeout(() => setListening(false), 2000);
-    }
-  }, [voiceText]);
+  socket.on("wake_word", onWake);
 
-  // I DO not know//
+  return () => {
+    socket.off("wake_word", onWake);
+  };
+}, [socket]);
 
-      useEffect(() => {
-        const video = document.getElementById("mirror-cam") as HTMLVideoElement | null;
-        if (!video) return;
 
-        navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 },
-          },
-          audio: false
-        })
-          .then(stream => {
-            video.srcObject = stream;
+  // -----------------------------
+  // Camera Setup
+  // -----------------------------
+  useEffect(() => {
+    const video = document.getElementById("mirror-cam") as HTMLVideoElement | null;
+    if (!video) return;
 
-            video.onloadedmetadata = () => {
-              console.log("🎥 Camera resolution:", video.videoWidth, video.videoHeight);
-            };
-          })
-          .catch(err => {
-            console.error("Camera access denied:", err);
-          });
-      }, []);
-
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: false })
+      .then((stream) => (video.srcObject = stream))
+      .catch((err) => console.error("Camera error:", err));
+  }, []);
 
   // -----------------------------
   // HANDLE BACKEND RESPONSES
   // -----------------------------
   useEffect(() => {
     if (!voiceResponse) return;
-
-    console.log("🎯 Mirror UI received:", voiceResponse);
+    console.log("🎯 UI got:", voiceResponse);
 
     const type = voiceResponse.type;
 
-    // ---- FINAL OUTFIT RESULT ----
     if (type === "OUTFIT") {
-      const suggestion = voiceResponse.suggestion;
-      const images = voiceResponse.images || [];
-
-      const formatted = images.map((url: string) => ({
+      const formatted = (voiceResponse.images || []).map((url: string) => ({
         url,
         caption: "Outfit match",
       }));
 
-      setOutfitSuggestion(suggestion);
+      setOutfitSuggestion(voiceResponse.suggestion);
       setOutfitImages(formatted);
-      showOutfitFor30s();
-      speak(suggestion);
+      setShowOutfit(true);
+      speak(voiceResponse.suggestion);
+
+      setTimeout(() => setShowOutfit(false), 30000);
       return;
     }
 
-    // ---- OUTFIT PENDING (NEEDS UI FRAME CAPTURE) ----
     if (type === "OUTFIT_PENDING") {
-      speak(voiceResponse.say || "Hold on, capturing your outfit.");
+      speak("Capturing your outfit...");
       return;
     }
 
-    // ---- PHOTO ----
     if (type === "PHOTO") {
       speak("Your photo has been taken.");
       toast.success("📸 Photo captured!");
       return;
     }
 
-    // ---- QR ----
-    if (type === "QR") {
+    if (type === "SHOW_QR") {
       setQrImage(voiceResponse.qr);
       setShowQR(true);
+      speak(voiceResponse.say || "Here is your QR code.");
+
       setTimeout(() => setShowQR(false), 30000);
-      speak("Here is your QR code.");
       return;
     }
 
-    // ---- WEATHER ----
-    if (type === "WEATHER") {
+    if (type === "WEATHER" || type === "TIME") {
       speak(voiceResponse.say);
-      toast(`🌤 ${voiceResponse.say}`);
+      toast(voiceResponse.say);
       return;
     }
 
-    // ---- TIME ----
-    if (type === "TIME") {
-      speak(voiceResponse.say);
-      toast(`⏰ ${voiceResponse.say}`);
-      return;
-    }
+    if (type === "SET_ALARM") {
+    speak(voiceResponse.say);
+    toast.success(voiceResponse.say);
+    return;
+  }
 
     if (type === "UNKNOWN") {
       speak("Sorry, I didn’t understand.");
-      return;
     }
   }, [voiceResponse]);
 
   // -----------------------------
-  // LISTEN FOR “REQUEST FRAME” FROM BACKEND
+// ⏰ HANDLE ALARM SET EVENT
+// -----------------------------
+useEffect(() => {
+  if (!socket) return;
+
+  const onAlarmSet = (data: { time: string }) => {
+    console.log("⏰ Alarm set received:", data);
+
+    if (window.updateAlarmFromVoice) {
+      window.updateAlarmFromVoice(data.time);
+    }
+  };
+
+  socket.on("alarm_set", onAlarmSet);
+
+  return () => {
+    socket.off("alarm_set", onAlarmSet);
+  };
+}, [socket]);
+
+  // -----------------------------
+  // HANDLE FRAME CAPTURE FOR OUTFIT
   // -----------------------------
  useEffect(() => {
   if (!socket) return;
@@ -182,9 +162,8 @@ const Index = () => {
   const onRequest = async () => {
     try {
       const video = document.getElementById("mirror-cam") as HTMLVideoElement | null;
-
       if (!video) {
-        console.error("No video element found");
+        console.error("No video element");
         return;
       }
 
@@ -197,20 +176,21 @@ const Index = () => {
 
       const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
 
-            await fetch("/voice/frame", {
+      await fetch("/voice/frame", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl })
+        body: JSON.stringify({ image: dataUrl }),
       });
-
 
     } catch (err) {
       console.error("Frame capture failed:", err);
     }
   };
 
+  // Attach event listener
   socket.on("request_frame_for_outfit", onRequest);
 
+  // Cleanup (must return a function)
   return () => {
     socket.off("request_frame_for_outfit", onRequest);
   };
@@ -218,54 +198,51 @@ const Index = () => {
 }, [socket]);
 
 
+  console.log("🎧 listening =", listening);
+
   // -----------------------------
   // UI RENDER
   // -----------------------------
- return (
-  <div className="fixed inset-0 bg-transparent overflow-hidden">
-    <div className="relative w-full h-full z-10">
+  return (
+    <div className="fixed inset-0 bg-transparent overflow-hidden">
+      <div className="relative w-full h-full z-10">
+        <div className="absolute top-4 left-4 z-20">
+          <TimeDisplay />
+        </div>
 
-      <div className="absolute top-4 left-4 z-20">
-        <TimeDisplay />
+        <div className="absolute top-4 right-4 z-20">
+          <WeatherWidget />
+        </div>
+
+        <div className="absolute bottom-4 left-4 z-20">
+          <CalendarWidget />
+        </div>
+
+        {/* 🔥 Mic Animation */}
+        <VoiceIndicator listening={listening} />
+
+        {/* Hidden camera */}
+        <video id="mirror-cam" autoPlay playsInline muted className="hidden" />
+
+        {/* Outfit */}
+        <OutfitDisplay
+          suggestion={outfitSuggestion}
+          images={outfitImages}
+          show={showOutfit}
+        />
+
+        {/* QR */}
+        <QRCodeDisplay qr={qrImage} show={showQR} />
+
+        {/* Music */}
+        <MusicPlayer />
+
+        <div className="absolute bottom-4 right-4 z-20">
+          <p className="text-xs text-muted-foreground/20">Smart Mirror</p>
+        </div>
       </div>
-
-      <div className="absolute top-4 right-4 z-20">
-        <WeatherWidget />
-      </div>
-
-      <div className="absolute bottom-4 left-4 z-20">
-        <CalendarWidget />
-      </div>
-
-      <VoiceIndicator listening={listening} />
-
-      <video
-        id="mirror-cam"
-        autoPlay
-        playsInline
-        muted
-        className="hidden"
-      />
-
-      <OutfitDisplay
-        suggestion={outfitSuggestion}
-        images={outfitImages}
-        show={showOutfit}
-      />
-
-      <QRCodeDisplay qr={qrImage} show={showQR} />
-
-      {/* 🎵 MUSIC PLAYER */}
-      <MusicPlayer />
-
-      <div className="absolute bottom-4 right-4 z-20">
-        <p className="text-xs text-muted-foreground/20">Smart Mirror</p>
-      </div>
-
     </div>
-  </div>
-);
-
+  );
 };
 
 export default Index;

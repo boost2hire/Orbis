@@ -14,6 +14,15 @@ import requests
 import sounddevice as sd
 import pyttsx3
 from dotenv import load_dotenv
+import socketio
+
+sio = socketio.Client()
+
+try:
+    sio.connect("http://127.0.0.1:5001")
+    print("🔌 Connected to mirror socket backend")
+except Exception as e:
+    print("❌ Could not connect to mirror socket backend:", e)
 
 load_dotenv()
 
@@ -197,6 +206,14 @@ def main_loop():
             if result >= 0:  # wake word detected
                 print("\n🔔 Wake word detected!\n")
 
+                # 🔥 Notify UI instantly
+                try:
+                    sio.emit("listening_start")
+                    sio.emit("wake_word", {"detected": True})
+                    print("📡 Emitted wake_word event to UI")
+                except Exception as e:
+                    print("❌ Failed to emit wake_word:", e)
+
                 if PLAY_BEEP:
                     beep()
 
@@ -205,15 +222,23 @@ def main_loop():
                 wav = record_after_wake(RECORD_SECONDS)
                 text = run_whisper(wav)
 
-                if text:
-                    print("📝 Transcribed:", text)
+                if text and text.strip() not in ["[BLANK_AUDIO]", ""]:
+                    print("📝 Transcription:", text)
+                    speak("You said: " + text)
                     post_to_backend(text)
                 else:
-                    print("⚠️ No transcription.")
-                    speak("Please try again.")
+                    print("⚠️ Blank or invalid transcription.")
+                    speak("I didn’t catch that.")
+                    sio.emit("voice_end")
 
-                time.sleep(0.3)  # small cooldown
+                time.sleep(0.3)
 
+@sio.on("voice_response")
+def on_voice_response(data):
+    msg = data.get("say")
+    if msg:
+        print("🗣 Lumi says:", msg)
+        speak(msg)
 
 # ----------------------------
 # Run engine

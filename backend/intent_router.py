@@ -1,7 +1,10 @@
-import os
 import traceback
+import json
 from datetime import datetime
 from flask import request, jsonify
+from ai.lumi_ai import lumi_think
+from intent_parser import parse_alarm
+from tts_engine import speak_async  # or wherever speak_async lives
 
 
 def register_intent_route(app, socketio):
@@ -15,57 +18,152 @@ def register_intent_route(app, socketio):
 
             socketio.emit("voice_text", {"text": text})
 
-            noise_words = {"ah","haan","hmm","huh","yo","ok","okay","uh","um"}
+            # ---------------------------------
+            # IGNORE NOISE
+            # ---------------------------------
+            noise_words = {"ah", "haan", "hmm", "huh", "yo", "ok", "okay", "uh", "um"}
             if not text or text in noise_words:
+                socketio.emit("voice_end")
                 return jsonify({"ignored": True})
 
-            # ----------------------------------------------
-            # OUTFIT
-            # ----------------------------------------------
-            OUTFIT_KEYWORDS = {
-                "suggest outfit","suggest","sujjest","so just","so jest",
-                "rate my outfit","how do i look","what am i wearing",
-                "analyze outfit","analyze my outfit","outfit","rate outfit",
-            }
+            # ---------------------------------
+            # 🤖 GPT INTENT LAYER
+            # ---------------------------------
+            try:
+                result = lumi_think(text)
+                print("🤖 GPT RESULT:", result)
+            except Exception as e:
+                print("❌ GPT CALL FAILED:", e)
+                payload = {"type": "ERROR", "say": "GPT service is unavailable."}
+                socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
+                return jsonify(payload), 500
 
-            def outfit_triggered(t):
-                cleaned = t.replace(".", "").replace(",", "").replace("?", "")
-                if any(k in cleaned for k in OUTFIT_KEYWORDS):
-                    return True
-                words = cleaned.split()
-                if len(words) >= 2 and words[0] in ("so","su","sug","suggest") and "out" in words[-1]:
-                    return True
-                return False
+           # ---------------------------------
+            # CASE 1: NORMAL CHAT / OUTFIT (STRING)
+            # ---------------------------------
+            if isinstance(result, str):
+                payload = {"type": "CHAT", "say": result}
 
-            if outfit_triggered(text):
-                print("👗 Outfit command detected — requesting UI frame")
+                # 🔊 SPEAK FIRST
+                speak_async("Yes?")
 
+                # Optional UI sync
+                socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
+
+                return jsonify(payload)
+
+
+            # ---------------------------------
+            # CASE 2: STRUCTURED GPT RESPONSE (DICT)
+            # ---------------------------------
+            gpt = result
+
+            # ---------------------------------
+            # CONFIRMATION REQUIRED
+            # ---------------------------------
+            if gpt.get("needs_confirmation"):
+                socketio.emit("confirm_intent", gpt)
+                socketio.emit("voice_end")
+                return jsonify({"confirm": True})
+
+            intent = gpt.get("intent", "").upper()
+
+            # ---------------------------------
+            # ⏰ ALARM (GPT CONFIRMED)
+            # ---------------------------------
+            if intent == "SET_ALARM":
+                details = gpt.get("details", {})
+                socketio.emit("alarm_set", details)
+
+                payload = {
+                    "type": "SET_ALARM",
+                    "say": gpt.get("confirmation_message", "Alarm set.")
+                }
+                socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
+                return jsonify(payload)
+
+            # ---------------------------------
+            # 👕 OUTFIT (REQUEST FRAME)
+            # ---------------------------------
+            if intent == "OUTFIT_SUGGEST":
                 socketio.emit("request_frame_for_outfit", {"reason": "voice_request"})
-
                 payload = {
                     "type": "OUTFIT_PENDING",
                     "say": "Hold on, capturing your outfit..."
                 }
-
                 socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
                 return jsonify(payload), 202
 
-            # ----------------------------------------------
-            # ✅ TAKE PHOTO (FIXED)
-            # ----------------------------------------------
-            if any(x in text for x in ("take photo", "capture photo", "photo", "snap a photo")):
+            # ---------------------------------
+            # 📷 QR CODE (MUST COME BEFORE PHOTO)
+            # ---------------------------------
+            QR_WORDS = ("qr", "qr code", "show qr", "download photo", "download photos")
+            if any(k in text for k in QR_WORDS):
+                try:
+                    import qrcode, base64, socket
+                    from io import BytesIO
+
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    try:
+                        s.connect(("8.8.8.8", 80))
+                        local_ip = s.getsockname()[0]
+                    finally:
+                        s.close()
+
+                    gallery_url = f"http://{local_ip}:5001/gallery"
+
+                    qr = qrcode.QRCode(
+                        version=1,
+                        error_correction=qrcode.constants.ERROR_CORRECT_H,
+                        box_size=12,
+                        border=2,
+                    )
+                    qr.add_data(gallery_url)
+                    qr.make(fit=True)
+
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    buf = BytesIO()
+                    img.save(buf, format="PNG")
+                    qr_b64 = base64.b64encode(buf.getvalue()).decode()
+
+                    payload = {
+                        "type": "SHOW_QR",
+                        "say": "Here is the QR code to download your photos.",
+                        "qr": "data:image/png;base64," + qr_b64
+                    }
+
+                    socketio.emit("voice_response", payload)
+                    socketio.emit("voice_end")
+                    return jsonify(payload)
+
+                except Exception as e:
+                    print("QR ERROR:", e)
+                    payload = {"type": "ERROR", "say": "Failed to generate QR."}
+                    socketio.emit("voice_response", payload)
+                    socketio.emit("voice_end")
+                    return jsonify(payload), 500
+
+            # ---------------------------------
+            # 📸 PHOTO (AFTER QR)
+            # ---------------------------------
+            PHOTO_WORDS = ("take photo", "capture photo", "snap a photo", "take my photo")
+            if any(k in text for k in PHOTO_WORDS):
+                socketio.emit("request_photo")
                 payload = {
                     "type": "REQUEST_PHOTO",
                     "say": "Capturing your photo."
                 }
-
-                socketio.emit("request_photo")          # ✅ tells Electron to capture
                 socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
                 return jsonify(payload)
 
-            # ----------------------------------------------
-            # WEATHER
-            # ----------------------------------------------
+            # ---------------------------------
+            # 🌦 WEATHER
+            # ---------------------------------
             if "weather" in text:
                 from weather_routes import get_weather
                 w = get_weather()
@@ -75,71 +173,72 @@ def register_intent_route(app, socketio):
                     "weather": w
                 }
                 socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
                 return jsonify(payload)
 
-            # ----------------------------------------------
-            # TIME
-            # ----------------------------------------------
+            # ---------------------------------
+            # ⏱ TIME
+            # ---------------------------------
             if "time" in text:
                 now = datetime.now().strftime("%I:%M %p")
                 payload = {"type": "TIME", "say": f"It is {now}."}
                 socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
                 return jsonify(payload)
 
-            # ----------------------------------------------
-            # MUSIC CONTROLS
-            # ----------------------------------------------
+            # ---------------------------------
+            # 🎵 MUSIC
+            # ---------------------------------
             if text.startswith("play") or "song" in text or "music" in text:
-                query = text.replace("play", "").replace("music", "").replace("song", "").strip()
-                if not query or query in ("songs", "music"):
-                    query = "popular songs"
-
+                query = (
+                    text.replace("play", "")
+                        .replace("music", "")
+                        .replace("song", "")
+                        .strip()
+                    or "popular songs"
+                )
                 socketio.emit("play_song", {"query": query})
                 payload = {"type": "MUSIC", "say": f"Playing {query}."}
                 socketio.emit("voice_response", payload)
+                socketio.emit("voice_end")
                 return jsonify(payload)
 
             if "pause" in text:
-                socketio.emit("music_pause", {})
-                payload = {"type": "MUSIC", "say": "Paused the music."}
-                socketio.emit("voice_response", payload)
-                return jsonify(payload)
+                socketio.emit("music_pause")
+                socketio.emit("voice_end")
+                return jsonify({"type": "MUSIC", "say": "Paused the music."})
 
-            if "resume" in text or "continue" in text or "play again" in text:
-                socketio.emit("music_resume", {})
-                payload = {"type": "MUSIC", "say": "Resuming the music."}
-                socketio.emit("voice_response", payload)
-                return jsonify(payload)
+            if "resume" in text or "continue" in text:
+                socketio.emit("music_resume")
+                socketio.emit("voice_end")
+                return jsonify({"type": "MUSIC", "say": "Resuming music."})
 
             if "next" in text:
-                socketio.emit("music_next", {})
-                payload = {"type": "MUSIC", "say": "Playing next song."}
-                socketio.emit("voice_response", payload)
-                return jsonify(payload)
+                socketio.emit("music_next")
+                socketio.emit("voice_end")
+                return jsonify({"type": "MUSIC", "say": "Playing next song."})
 
             if "previous" in text or "back" in text:
-                socketio.emit("music_prev", {})
-                payload = {"type": "MUSIC", "say": "Going to previous track."}
-                socketio.emit("voice_response", payload)
-                return jsonify(payload)
+                socketio.emit("music_prev")
+                socketio.emit("voice_end")
+                return jsonify({"type": "MUSIC", "say": "Playing previous track."})
 
-            if "stop music" in text or ("stop" in text and "music" in text):
-                socketio.emit("music_stop", {})
-                payload = {"type": "MUSIC", "say": "Stopping the music."}
-                socketio.emit("voice_response", payload)
-                return jsonify(payload)
+            if "stop music" in text:
+                socketio.emit("music_stop")
+                socketio.emit("voice_end")
+                return jsonify({"type": "MUSIC", "say": "Stopping the music."})
 
-            # ----------------------------------------------
+            # ---------------------------------
             # FALLBACK
-            # ----------------------------------------------
+            # ---------------------------------
             payload = {"type": "UNKNOWN", "say": "Sorry, I didn't understand."}
             socketio.emit("voice_response", payload)
+            socketio.emit("voice_end")
             return jsonify(payload)
 
         except Exception as e:
             traceback.print_exc()
-            err = {"type": "ERROR", "say": "Internal error.", "error": str(e)}
-            socketio.emit("voice_response", err)
-            return jsonify(err), 500
-
-
+            payload = {"type": "ERROR", "say": "Internal error."}
+            socketio.emit("voice_response", payload)
+            socketio.emit("voice_end")
+            return jsonify(payload), 500
